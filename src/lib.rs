@@ -11,22 +11,22 @@ use thiserror::Error;
 mod tests;
 
 pub struct GreHeader {
-    version: u8,
-    checksum_flag: bool,
-    sequence_num_flag: bool,
-    key_flag: bool,
-    checksum: Option<u16>,
-    key: Option<u32>,
-    sequence_number: Option<u32>,
+    pub version: u8,
+    pub checksum_flag: bool,
+    pub sequence_num_flag: bool,
+    pub key_flag: bool,
+    pub checksum: Option<u16>,
+    pub key: Option<u32>,
+    pub sequence_number: Option<u32>,
 }
 
 pub struct ErspanHeader {
-    gre_header: GreHeader,
-    source: IpAddr,
-    destination: IpAddr,
-    version: ErspanVersion,
-    vlan: u16,
-    original_data_packet: Vec<u8>,
+    pub gre_header: GreHeader,
+    pub source: IpAddr,
+    pub destination: IpAddr,
+    pub version: ErspanVersion,
+    pub vlan: u16,
+    pub original_data_packet: Vec<u8>,
 }
 
 #[derive(Debug, PartialEq)]
