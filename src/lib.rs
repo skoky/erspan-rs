@@ -1,21 +1,29 @@
-mod tests;
+use std::io::{Cursor};
+use std::net::IpAddr;
 
-use pnet::packet::ethernet::{EtherTypes, EthernetPacket};
+use byteorder::{BigEndian, ReadBytesExt};
+use pnet::packet::ethernet::{EthernetPacket, EtherTypes};
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::Packet;
-use std::io::{Cursor};
-use std::net::IpAddr;
-use byteorder::{BigEndian, ReadBytesExt};
 use thiserror::Error;
 
+mod tests;
+
 pub struct GreHeader {
-    flags_and_version: u16,
-    sequence_number: u32,
+    version: u8,
+    checksum_flag: bool,
+    sequence_num_flag: bool,
+    key_flag: bool,
+    checksum: Option<u16>,
+    key: Option<u32>,
+    sequence_number: Option<u32>,
 }
 
 pub struct ErspanHeader {
     gre_header: GreHeader,
+    source: IpAddr,
+    destination: IpAddr,
     version: ErspanVersion,
     vlan: u16,
     original_data_packet: Vec<u8>,
@@ -46,6 +54,9 @@ pub enum ErspanError {
 
     #[error("GRE protocol not containing ERSPAN")]
     InvalidGrePacketType,
+
+    #[error("GRE with routing option not implemented yet")]
+    GreWithRoutingNotImplemented,
 }
 
 fn erspan_decap(erspan_packet: &[u8], _is_interface_loopback: bool) -> Result<ErspanHeader, ErspanError> {
@@ -100,14 +111,39 @@ pub fn handle_gre_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) -> 
 
     // GRE header
     let mut rdr = Cursor::new(&packet);
-    let num = rdr.read_u16::<BigEndian>().unwrap();
-    let proto_type = rdr.read_u16::<BigEndian>().unwrap();
+    let flags = rdr.read_u16::<BigEndian>().unwrap();
+    let checksum_flag = (flags & 0b1000_0000_0000_0000) > 0;
+    let routing_flag = (flags & 0b100_0000_0000_0000) > 0;
+    let key_flag = (flags & 0b10_0000_0000_0000) > 0;
+    let sequence_num_flag = (flags & 0b1_0000_0000_0000) > 0;
+    let gre_version = (flags & 0b111) as u8;
 
+    let proto_type = rdr.read_u16::<BigEndian>().unwrap();
     if proto_type != 0x88be {   // ERSPAN packet type constant
         return Err(ErspanError::InvalidGrePacketType);
     }
 
-    let seq = rdr.read_u32::<BigEndian>().unwrap();
+    let checksum = if checksum_flag {
+        Some(rdr.read_u16::<BigEndian>().unwrap())
+    } else {
+        None
+    };
+
+    if routing_flag {
+        return Err(ErspanError::GreWithRoutingNotImplemented);
+    }
+
+    let key = if key_flag {
+        Some(rdr.read_u32::<BigEndian>().unwrap())
+    } else {
+        None
+    };
+
+    let seq = if sequence_num_flag {
+        Some(rdr.read_u32::<BigEndian>().unwrap())
+    } else {
+        None
+    };
 
     let version_and_vlan = rdr.read_u16::<BigEndian>().unwrap();
     let version_num = version_and_vlan >> 12;
@@ -125,9 +161,16 @@ pub fn handle_gre_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) -> 
 
     return Ok(ErspanHeader {
         gre_header: GreHeader {
-            flags_and_version: num,
-            sequence_number: seq,
+            version:gre_version,
+            checksum_flag,
+            sequence_num_flag,
+            key_flag,
+            checksum,
+            key,
+            sequence_number:seq
         },
+        source,
+        destination,
         version,
         vlan,
         original_data_packet: buf,
