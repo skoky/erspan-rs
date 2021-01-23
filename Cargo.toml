@@ -1,0 +1,11 @@
+[package]
+name = "erspan"
+version = "0.1.0"
+authors = ["Skoky <skokys@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+pnet = "0.26.0"
+hex = "0.4.2"
+byteorder = "1.4.2"
+thiserror = "1.0.23"
