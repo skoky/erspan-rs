@@ -8,7 +8,7 @@ use std::net::IpAddr;
 fn erspan_decap_packet() {
     let packet = "52540072a57f6cab051f0c7408004500005b00004000fa2f57ee0a000a010a000a85100088be7e088837100100010000000054b20307eeed6cab051f0c74080045000029250e000039116cb059bb82400a000a0b2703e1f60015fab0ee1c108eee4ece4a36cd840096";
     let packet_bytes = &hex::decode(packet).unwrap();
-    let original_packet = match erspan_decap(packet_bytes, false) {
+    let original_packet = match erspan_decap(packet_bytes) {
         Ok(result) => {
             assert_eq!(result.version, ErspanVersion::Version2);
             assert_eq!(result.vlan, 1);
@@ -22,6 +22,11 @@ fn erspan_decap_packet() {
             assert_eq!(result.gre_header.key, None);
             assert_eq!(result.source, IpAddr::from_str("10.0.10.1").unwrap());
             assert_eq!(result.destination, IpAddr::from_str("10.0.10.133").unwrap());
+            assert_eq!(result.cos,0);
+            assert_eq!(result.encap_type,0);
+            assert_eq!(result.truncated,false);
+            assert_eq!(result.session_id,1);
+            assert_eq!(result.port_index,0x20307);
             result.original_data_packet
         }
         Err(e) => panic!(e)
@@ -38,7 +43,7 @@ fn erspan_decap_packet() {
 fn erspan_decap_packet_failure1() {
     let packet = "52";
     let packet_bytes = &hex::decode(packet).unwrap();
-    match erspan_decap(packet_bytes, false) {
+    match erspan_decap(packet_bytes) {
         Ok(_result) => panic!("Unexpected end"),
         Err(e) => assert_eq!(e, ErspanError::UnknownPacket)
     }
@@ -48,7 +53,7 @@ fn erspan_decap_packet_failure1() {
 fn erspan_decap_packet_no_erspan() {
     let packet = "52540072a57f6cab051f0c7408004500005b00004000fa2f57ee0a000a010a000a85100089be7e088837100100010000000054b20307eeed6cab051f0c74080045000029250e000039116cb059bb82400a000a0b2703e1f60015fab0ee1c108eee4ece4a36cd840096";
     let packet_bytes = &hex::decode(packet).unwrap();
-    match erspan_decap(packet_bytes, false) {
+    match erspan_decap(packet_bytes) {
         Ok(_result) => panic!("Unexpected end"),
         Err(e) => assert_eq!(e, ErspanError::InvalidGrePacketType)
     }
@@ -58,7 +63,7 @@ fn erspan_decap_packet_no_erspan() {
 fn erspan_decap_packet_too_short() {
     let packet = "52540072a57f6cab051f0c7408004500005b00004000fa2f57ee0a000a010a000a85100088be7e08883710010001";
     let packet_bytes = &hex::decode(packet).unwrap();
-    match erspan_decap(packet_bytes, false) {
+    match erspan_decap(packet_bytes) {
         Ok(_result) => panic!("Unexpected end"),
         Err(e) => assert_eq!(e, ErspanError::PacketTooShort)
     }
@@ -68,7 +73,7 @@ fn erspan_decap_packet_too_short() {
 fn erspan_decap_packet_invalid_ipv4() {
     let packet = "52540072a57f6cab051f0c7408004500005b00004000fa2f57ee0a000a010a000a";
     let packet_bytes = &hex::decode(packet).unwrap();
-    match erspan_decap(packet_bytes, false) {
+    match erspan_decap(packet_bytes) {
         Ok(_result) => panic!("Unexpected end"),
         Err(e) => assert_eq!(e, ErspanError::InvalidIpV4Packet)
     }
@@ -78,7 +83,7 @@ fn erspan_decap_packet_invalid_ipv4() {
 fn erspan_decap_packet_invalid_ipv4_x() {
     let packet = "9801a7a0c751525400349b810800451000b0398f40004006d8030a000a8c0a000a1a0016e4fe28aa45f22318fe3b801801f5294800000101080adf7040c64ef704c0380dc7040b31e56e14329632a5da156d35a71647065331762f829479e270f9dc39998316313d0262d30cb459d165a7f28043d23edbaee8a0837744963dc1dc8920ac028a021e1d51ae99d5a873fb287215f7f2a18065e9919417da786cf05b65d2a4f43c9113ddde9df355c3630b3ff31a90f1588531c8a7d3ef636b";
     let packet_bytes = &hex::decode(packet).unwrap();
-    match erspan_decap(packet_bytes, false) {
+    match erspan_decap(packet_bytes) {
         Ok(_result) =>
             panic!("Unexpected end"),
         Err(e) => assert_eq!(e, ErspanError::InvalidTransportProtocol)

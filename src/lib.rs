@@ -26,6 +26,11 @@ pub struct ErspanHeader {
     pub destination: IpAddr,
     pub version: ErspanVersion,
     pub vlan: u16,
+    pub cos: u8,
+    pub encap_type: u8,
+    pub truncated: bool,
+    pub session_id: u16,
+    pub port_index: u32,
     pub original_data_packet: Vec<u8>,
 }
 
@@ -33,6 +38,7 @@ pub struct ErspanHeader {
 pub enum ErspanVersion {
     Version1 = 0,
     Version2 = 1,
+    Version3 = 2,
     Unknown,
 }
 
@@ -59,7 +65,7 @@ pub enum ErspanError {
     GreWithRoutingNotImplemented,
 }
 
-pub fn erspan_decap(erspan_packet: &[u8], _is_interface_loopback: bool) -> Result<ErspanHeader, ErspanError> {
+pub fn erspan_decap(erspan_packet: &[u8]) -> Result<ErspanHeader, ErspanError> {
     match EthernetPacket::new(erspan_packet) {
         Some(eframe) => {
             match eframe.get_ethertype() {
@@ -119,7 +125,7 @@ pub fn handle_gre_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) -> 
     let gre_version = (flags & 0b111) as u8;
 
     let proto_type = rdr.read_u16::<BigEndian>().unwrap();
-    if proto_type != 0x88be {   // ERSPAN packet type constant
+    if proto_type != 0x88be && proto_type != 0x22EB {   // ERSPAN packet type constant
         return Err(ErspanError::InvalidGrePacketType);
     }
 
@@ -145,14 +151,25 @@ pub fn handle_gre_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) -> 
         None
     };
 
+    // start of ERSPAN header
     let version_and_vlan = rdr.read_u16::<BigEndian>().unwrap();
     let version_num = version_and_vlan >> 12;
     let version = match version_num {
         0 => ErspanVersion::Version1,
         1 => ErspanVersion::Version2,
+        2 => ErspanVersion::Version3,
         _ => ErspanVersion::Unknown
     };
     let vlan = version_and_vlan & 0x0FFF;
+
+    let gre_header_rest = rdr.read_u16::<BigEndian>().unwrap();
+    let cos = (gre_header_rest >> 13) as u8;  // & 0b1110_0000_0000_0000;
+    let encap_type = (gre_header_rest >> 11) as u8;   // & 0b0001_1000_0000_0000;
+    let truncated = (gre_header_rest  >> 10) == 1; // & 0b0000_0100_0000_0000) > 0;
+    let session_id = gre_header_rest & 0b0000_0011_1111_1111;
+
+    let gre_header_rest2 = rdr.read_u64::<BigEndian>().unwrap();
+    let port_index = (gre_header_rest2 & 0b0000_0000_0000_1111_1111_1111_1111_1111) as u32;
 
     let (_, data) = packet.split_at(gre_headers_size);
     let buf = Vec::from(data);
@@ -173,6 +190,11 @@ pub fn handle_gre_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) -> 
         destination,
         version,
         vlan,
+        cos,
+        encap_type,
+        truncated,
+        session_id,
+        port_index,
         original_data_packet: buf,
     });
 }
