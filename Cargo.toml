@@ -2,7 +2,7 @@
 name = "erspan"
 version = "0.1.0"
 authors = ["Skoky <skokys@gmail.com>"]
-license = "mit"
+license = "MIT"
 description = "Unwraps original data packet from GRE/ERSPAN packet"
 homepage = "https://github.com/skoky/erspan-rs"
 documentation = "https://github.com/skoky/erspan-rs"
