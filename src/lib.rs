@@ -59,7 +59,7 @@ pub enum ErspanError {
     GreWithRoutingNotImplemented,
 }
 
-fn erspan_decap(erspan_packet: &[u8], _is_interface_loopback: bool) -> Result<ErspanHeader, ErspanError> {
+pub fn erspan_decap(erspan_packet: &[u8], _is_interface_loopback: bool) -> Result<ErspanHeader, ErspanError> {
     match EthernetPacket::new(erspan_packet) {
         Some(eframe) => {
             match eframe.get_ethertype() {
