@@ -1,4 +1,4 @@
-use std::io::Cursor;
+use std::io::{Cursor};
 use std::net::IpAddr;
 
 use byteorder::{BigEndian, ReadBytesExt};
@@ -10,7 +10,6 @@ use thiserror::Error;
 
 mod tests;
 
-#[derive(Debug, PartialEq, Display)]
 pub struct GreHeader {
     pub version: u8,
     pub checksum_flag: bool,
@@ -21,7 +20,6 @@ pub struct GreHeader {
     pub sequence_number: Option<u32>,
 }
 
-#[derive(Debug, PartialEq, Display)]
 pub struct ErspanHeader {
     pub gre_header: GreHeader,
     pub source: IpAddr,
@@ -36,7 +34,7 @@ pub struct ErspanHeader {
     pub original_data_packet: Vec<u8>,
 }
 
-#[derive(Debug, PartialEq, Display)]
+#[derive(Debug, PartialEq)]
 pub enum ErspanVersion {
     Version1 = 0,
     Version2 = 1,
@@ -44,7 +42,7 @@ pub enum ErspanVersion {
     Unknown,
 }
 
-#[derive(Error, Debug, PartialEq, Display)]
+#[derive(Error, Debug, PartialEq)]
 pub enum ErspanError {
     /// Represents an empty source. For example, an empty text file being given
     /// as input to `count_words()`.
@@ -167,7 +165,7 @@ pub fn handle_gre_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) -> 
     let gre_header_rest = rdr.read_u16::<BigEndian>().unwrap();
     let cos = (gre_header_rest >> 13) as u8;  // & 0b1110_0000_0000_0000;
     let encap_type = (gre_header_rest >> 11) as u8;   // & 0b0001_1000_0000_0000;
-    let truncated = (gre_header_rest >> 10) == 1; // & 0b0000_0100_0000_0000) > 0;
+    let truncated = (gre_header_rest  >> 10) == 1; // & 0b0000_0100_0000_0000) > 0;
     let session_id = gre_header_rest & 0b0000_0011_1111_1111;
 
     let gre_header_rest2 = rdr.read_u64::<BigEndian>().unwrap();
@@ -180,13 +178,13 @@ pub fn handle_gre_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) -> 
 
     return Ok(ErspanHeader {
         gre_header: GreHeader {
-            version: gre_version,
+            version:gre_version,
             checksum_flag,
             sequence_num_flag,
             key_flag,
             checksum,
             key,
-            sequence_number: seq,
+            sequence_number:seq
         },
         source,
         destination,
