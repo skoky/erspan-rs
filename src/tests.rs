@@ -1,8 +1,10 @@
-use std::str::FromStr;
-use crate::{erspan_decap, ErspanError, ErspanVersion};
-use pnet::packet::ethernet::{EtherTypes, EthernetPacket};
-use pnet::util::MacAddr;
 use std::net::IpAddr;
+use std::str::FromStr;
+
+use pnet::packet::ethernet::{EthernetPacket, EtherTypes};
+use pnet::util::MacAddr;
+
+use crate::{erspan_decap, ErspanError, ErspanType};
 
 #[test]
 fn erspan_decap_packet() {
@@ -10,7 +12,7 @@ fn erspan_decap_packet() {
     let packet_bytes = &hex::decode(packet).unwrap();
     let original_packet = match erspan_decap(packet_bytes) {
         Ok(result) => {
-            assert_eq!(result.version, ErspanVersion::Version2);
+            assert_eq!(result.version, ErspanType::Type2);
             assert_eq!(result.vlan, 1);
             assert_eq!(result.gre_header.version, 0);
             assert_eq!(result.gre_header.checksum_flag, false);
@@ -22,11 +24,12 @@ fn erspan_decap_packet() {
             assert_eq!(result.gre_header.key, None);
             assert_eq!(result.source, IpAddr::from_str("10.0.10.1").unwrap());
             assert_eq!(result.destination, IpAddr::from_str("10.0.10.133").unwrap());
-            assert_eq!(result.cos,0);
-            assert_eq!(result.encap_type,0);
-            assert_eq!(result.truncated,false);
-            assert_eq!(result.session_id,1);
-            assert_eq!(result.port_index,0x20307);
+            assert_eq!(result.cos, 0);
+            assert_eq!(result.encap_type, 0);
+            assert_eq!(result.truncated, false);
+            assert_eq!(result.session_id, 1);
+            assert_eq!(result.port_index, 0x20307);
+            assert_eq!(result.security_group_tag, None);
             result.original_data_packet
         }
         Err(e) => panic!(e)
@@ -37,6 +40,41 @@ fn erspan_decap_packet() {
     assert_eq!(eframe.get_ethertype(), EtherTypes::Ipv4);
     assert_eq!(eframe.get_source(), MacAddr::from_str("6c:ab:05:1f:0c:74").unwrap());
     assert_eq!(eframe.get_destination(), MacAddr::from_str("54:b2:03:07:ee:ed").unwrap());
+}
+
+#[test]
+fn erspan_typ3_decap_packet() {
+    let packet = "525400349b816cab051f0c740800450000ee00004000fa2f57540a000a010a000a8c100022eba387d821200000014b1cd79a000000090c00000100000ea93456fec7b8686cab051f0c740800450000b00c5440003511187cd1ce3a380a000a671cb7a4fe009cd107fef728910d03001c06c7b868000000020000000100000000000000006c0dca0cfcac602e6291bc91c4eea5894309e97f7db0cfaeabbf0615b21b4836a9bb345f4eff7c5e6af56bb44c67f720bfc53a5fccc62be2b6caef55f6c735b122c82f3e1630a7988312bebafe9f3082baee8cea429f0d103376cab0690ee95089054c262396bc19fa0b0ce1c2349ad7cb73128675b2b6ae";
+    let packet_bytes = &hex::decode(packet).unwrap();
+    let original_packet = match erspan_decap(packet_bytes) {
+        Ok(result) => {
+            assert_eq!(result.version, ErspanType::Type3);
+            assert_eq!(result.vlan, 0);
+            assert_eq!(result.gre_header.version, 0);
+            assert_eq!(result.gre_header.checksum_flag, false);
+            assert_eq!(result.gre_header.key_flag, false);
+            assert_eq!(result.gre_header.sequence_num_flag, true);
+            assert_eq!(result.original_data_packet.len() > 0, true);
+            assert_eq!(result.gre_header.sequence_number.unwrap(), 2743588897);
+            assert_eq!(result.gre_header.checksum, None);
+            assert_eq!(result.gre_header.key, None);
+            assert_eq!(result.source, IpAddr::from_str("10.0.10.1").unwrap());
+            assert_eq!(result.destination, IpAddr::from_str("10.0.10.140").unwrap());
+            assert_eq!(result.cos, 0);
+            assert_eq!(result.encap_type, 0);
+            assert_eq!(result.truncated, false);
+            assert_eq!(result.session_id, 1);
+            assert_eq!(result.security_group_tag, Some(0));
+            result.original_data_packet
+        }
+        Err(e) => panic!(e)
+    };
+
+    assert_eq!(original_packet.len(), 190);
+    let eframe = &EthernetPacket::new(original_packet.as_slice()).unwrap();
+    assert_eq!(eframe.get_ethertype(), EtherTypes::Ipv4);
+    assert_eq!(eframe.get_source(), MacAddr::from_str("6c:ab:05:1f:0c:74").unwrap());
+    assert_eq!(eframe.get_destination(), MacAddr::from_str("34:56:fe:c7:b8:68").unwrap());
 }
 
 #[test]

@@ -24,21 +24,22 @@ pub struct ErspanHeader {
     pub gre_header: GreHeader,
     pub source: IpAddr,
     pub destination: IpAddr,
-    pub version: ErspanVersion,
+    pub version: ErspanType,
     pub vlan: u16,
     pub cos: u8,
     pub encap_type: u8,
     pub truncated: bool,
     pub session_id: u16,
     pub port_index: u32,
+    pub security_group_tag: Option<u16>,
     pub original_data_packet: Vec<u8>,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum ErspanVersion {
-    Version1 = 0,
-    Version2 = 1,
-    Version3 = 2,
+pub enum ErspanType {
+    Type1 = 0,
+    Type2 = 1,
+    Type3 = 2,
     Unknown,
 }
 
@@ -108,9 +109,10 @@ fn handle_transport_protocol(
 
 
 pub fn handle_gre_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) -> Result<ErspanHeader, ErspanError> {
-    let gre_headers_size = 8 + 8;  // gre + erspan headers
 
-    if packet.len() < gre_headers_size {
+    let min_gre_headers_size = 16;
+
+    if packet.len() < min_gre_headers_size {
         return
             Err(ErspanError::PacketTooShort);
     }
@@ -154,11 +156,21 @@ pub fn handle_gre_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) -> 
     // start of ERSPAN header
     let version_and_vlan = rdr.read_u16::<BigEndian>().unwrap();
     let version_num = version_and_vlan >> 12;
+    let mut gre_headers_size = 8 + 8;  // gre + erspan headers
     let version = match version_num {
-        0 => ErspanVersion::Version1,
-        1 => ErspanVersion::Version2,
-        2 => ErspanVersion::Version3,
-        _ => ErspanVersion::Unknown
+        0 => {
+            gre_headers_size = 8 + 8;  // gre + erspan headers
+            ErspanType::Type1
+        },
+        1 => {
+            gre_headers_size = 8 + 8;  // gre + erspan headers
+            ErspanType::Type2
+        },
+        2 => {
+            gre_headers_size = 8 + 20;  // gre + erspan headers
+            ErspanType::Type3
+        },
+        _ => ErspanType::Unknown
     };
     let vlan = version_and_vlan & 0x0FFF;
 
@@ -171,20 +183,32 @@ pub fn handle_gre_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) -> 
     let gre_header_rest2 = rdr.read_u64::<BigEndian>().unwrap();
     let port_index = (gre_header_rest2 & 0b0000_0000_0000_1111_1111_1111_1111_1111) as u32;
 
+    let mut security_group_tag = None;
+    if proto_type == 0x22EB {   // type III additional params
+        let _timestamp = rdr.read_u32::<BigEndian>().unwrap();
+        security_group_tag = Some(rdr.read_u16::<BigEndian>().unwrap());
+
+        let _second_flags = rdr.read_u16::<BigEndian>().unwrap();
+        let _third_flags = rdr.read_u16::<BigEndian>().unwrap();
+        let _platform_spec_info = rdr.read_u32::<BigEndian>().unwrap();
+        // port_id / index
+        let _upper_timestamp = rdr.read_u32::<BigEndian>().unwrap();  // TODO process timestamp
+    }
+
     let (_, data) = packet.split_at(gre_headers_size);
     let buf = Vec::from(data);
 
     // TODO other flags
 
-    return Ok(ErspanHeader {
+    Ok(ErspanHeader {
         gre_header: GreHeader {
-            version:gre_version,
+            version: gre_version,
             checksum_flag,
             sequence_num_flag,
             key_flag,
             checksum,
             key,
-            sequence_number:seq
+            sequence_number: seq
         },
         source,
         destination,
@@ -195,6 +219,7 @@ pub fn handle_gre_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) -> 
         truncated,
         session_id,
         port_index,
+        security_group_tag,
         original_data_packet: buf,
-    });
+    })
 }
