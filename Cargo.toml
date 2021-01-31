@@ -1,6 +1,6 @@
 [package]
 name = "erspan"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Skoky <skokys@gmail.com>"]
 license = "MIT"
 description = "Unwraps original data packet from GRE/ERSPAN packet"

@@ -167,7 +167,7 @@ pub fn handle_gre_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) -> 
             ErspanType::Type2
         },
         2 => {
-            gre_headers_size = 8 + 20;  // gre + erspan headers
+            gre_headers_size = 8 + 12;  // gre + erspan headers
             ErspanType::Type3
         },
         _ => ErspanType::Unknown
@@ -188,11 +188,15 @@ pub fn handle_gre_packet(source: IpAddr, destination: IpAddr, packet: &[u8]) -> 
         let _timestamp = rdr.read_u32::<BigEndian>().unwrap();
         security_group_tag = Some(rdr.read_u16::<BigEndian>().unwrap());
 
-        let _second_flags = rdr.read_u16::<BigEndian>().unwrap();
-        let _third_flags = rdr.read_u16::<BigEndian>().unwrap();
-        let _platform_spec_info = rdr.read_u32::<BigEndian>().unwrap();
-        // port_id / index
-        let _upper_timestamp = rdr.read_u32::<BigEndian>().unwrap();  // TODO process timestamp
+        let second_flags = rdr.read_u16::<BigEndian>().unwrap();
+
+        let optional_subheader_present = second_flags & 0b1;
+
+        if optional_subheader_present == 1 {
+            gre_headers_size = gre_headers_size + 8;
+            let _platform_spec_info = rdr.read_u32::<BigEndian>().unwrap();
+            let _upper_timestamp = rdr.read_u32::<BigEndian>().unwrap();  // TODO process timestamp
+        }
     }
 
     let (_, data) = packet.split_at(gre_headers_size);
